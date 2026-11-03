@@ -4,9 +4,12 @@
 
 ## 環境構築
 
+開発環境は [Laravel Sail](https://laravel.com/docs/10.x/sail)（Docker）で動かします。
+
 ### 前提条件
 
 - Docker Desktop がインストールされていること
+  - Windows（WSL2）の場合は、Docker Desktop の設定で WSL Integration を有効にしてください
 
 ### セットアップ手順
 
@@ -23,52 +26,112 @@ cd pro-cc-coursehub
 cp .env.example .env
 ```
 
-3. `.env` の設定例
+作成した `.env` の次の項目を書き換えます。
 
 ```
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=laravel
+DB_HOST=mysql
 DB_USERNAME=sail
 DB_PASSWORD=password
+QUEUE_CONNECTION=sync
+```
+
+> `DB_HOST` は `127.0.0.1` ではなく、`compose.yaml` のサービス名 `mysql` を指定します（アプリはコンテナ内から DB に接続するため）。
+
+3. 依存パッケージをインストール
+
+アプリのコンテナは `vendor/laravel/sail/runtimes/8.2/Dockerfile` からビルドされます。このファイルは `composer install` で作られるので、**Docker を起動する前に**実行してください。
+
+ホストに PHP 8.2 と Composer がある場合:
+
+```bash
+composer install
+```
+
+ホストに PHP がない場合（Docker で実行）:
+
+```bash
+docker run --rm \
+    -u "$(id -u):$(id -g)" \
+    -v "$(pwd):/var/www/html" \
+    -w /var/www/html \
+    laravelsail/php82-composer:latest \
+    composer install --ignore-platform-reqs
 ```
 
 4. Docker を起動
 
 ```bash
-docker compose up -d
+./vendor/bin/sail up -d
 ```
 
-5. マイグレーション・シーディング
+初回はイメージのビルドがあるので数分かかります。`docker compose up -d` でも起動できます。
+
+5. アプリケーションキーの生成
 
 ```bash
-php artisan migrate --seed
+./vendor/bin/sail artisan key:generate
 ```
 
-6. アプリケーションキーの生成
+6. マイグレーション・シーディング
 
 ```bash
-php artisan key:generate
+./vendor/bin/sail artisan migrate --seed
 ```
 
-### キュー設定
+7. フロントエンドのビルド
 
-本番環境では Redis を使用します。`.env` に以下を設定:
+```bash
+./vendor/bin/sail npm install
+./vendor/bin/sail npm run dev
+```
 
+開発中は `npm run dev` を起動したままにします。ビルドだけ行う場合は `./vendor/bin/sail npm run build` を実行します。
+
+### sail エイリアス（任意）
+
+毎回 `./vendor/bin/sail` と打つ手間を省けます。
+
+```bash
+alias sail='sh $([ -f sail ] && echo sail || echo vendor/bin/sail)'
 ```
-QUEUE_CONNECTION=redis
-```
+
+以降は `sail artisan migrate` のように実行できます。
 
 ### アクセス
 
 - アプリケーション: http://localhost
 - phpMyAdmin: http://localhost:8080
 
+### ログイン用アカウント
+
+シーディングで次のアカウントが作られます。パスワードはすべて `password` です。
+
+| ロール | メールアドレス |
+|---|---|
+| admin | `admin@coursehub.com` |
+| coach | `coach1@coursehub.com` 〜 `coach3@coursehub.com` |
+| student | `student@coursehub.com` |
+
+### キュー設定
+
+ローカル開発では `QUEUE_CONNECTION=sync` を使います。`compose.yaml` には Redis が含まれていないので、ローカルで `redis` を設定するとジョブを入れたときにエラーになります。
+
+本番環境では Redis を使います。
+
+```
+QUEUE_CONNECTION=redis
+```
+
+### トラブルシューティング
+
+- **`docker compose up` で Dockerfile が見つからない**: `composer install` を実行していません。手順 3 を先に行ってください。
+- **DB に接続できない**: `.env` が `DB_HOST=mysql` になっているか確認してください。
+- **ポート 80 または 3306 が使用中**: `.env` に `APP_PORT=8000` や `FORWARD_DB_PORT=3307` を追加して、ポートを変えてください。
+
 ## テスト
 
 ```bash
-php artisan test
+./vendor/bin/sail artisan test
 ```
 
 ## コーディング規約
