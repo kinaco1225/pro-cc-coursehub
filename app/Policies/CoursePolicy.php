@@ -18,7 +18,7 @@ class CoursePolicy
             return true;
         }
 
-        return true;
+        return $course->status === 'published';
     }
 
     public function create(User $user): bool
