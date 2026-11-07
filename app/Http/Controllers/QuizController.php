@@ -14,6 +14,11 @@ class QuizController extends Controller
     {
         $this->authorize('view', $course);
 
+        if (auth()->user()->cannot('create', [Submission::class, $quiz])) {
+            return redirect()->route('courses.quizzes.result', [$course, $quiz])
+                ->with('success', 'この小テストは合格済みです。');
+        }
+
         $quiz->load('questions.options');
 
         return view('quizzes.show', compact('course', 'quiz'));
@@ -21,6 +26,8 @@ class QuizController extends Controller
 
     public function submit(Request $request, Course $course, Quiz $quiz)
     {
+        $this->authorize('create', [Submission::class, $quiz]);
+
         $answers = $request->input('answers', []);
 
         $correctCount = 0;
@@ -51,11 +58,17 @@ class QuizController extends Controller
 
         $quiz->load('questions.options');
 
-        $submission = Submission::where('user_id', auth()->id())
-            ->where('quiz_id', $quiz->id)
-            ->latest()
-            ->firstOrFail();
+        $submissions = $quiz->submissions()
+            ->where('user_id', auth()->id())
+            ->latest('submitted_at')
+            ->latest('id')
+            ->get();
 
-        return view('quizzes.result', compact('course', 'quiz', 'submission'));
+        abort_if($submissions->isEmpty(), 404);
+
+        $submission = $submissions->first();
+        $canRetake = auth()->user()->can('create', [Submission::class, $quiz]);
+
+        return view('quizzes.result', compact('course', 'quiz', 'submission', 'submissions', 'canRetake'));
     }
 }

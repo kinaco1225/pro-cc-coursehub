@@ -20,4 +20,17 @@ class SubmissionPolicy
             ->where('status', 'active')
             ->exists();
     }
+
+    /**
+     * 小テストを受験（Submission を作成）できるか
+     *
+     * 合格済み（score >= passing_score）の Submission がある場合は再受験不可
+     */
+    public function create(User $user, Quiz $quiz): bool
+    {
+        return ! $quiz->submissions()
+            ->where('user_id', $user->id)
+            ->where('score', '>=', $quiz->passing_score)
+            ->exists();
+    }
 }
