@@ -53,6 +53,11 @@ class Course extends Model
         return $this->belongsToMany(Tag::class, 'course_tag');
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
     public function scopePublished($query)
     {
         return $query->where('status', 'published');
